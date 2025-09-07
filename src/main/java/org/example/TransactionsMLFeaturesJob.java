@@ -1,20 +1,15 @@
 package org.example;
 
-import com.datastax.driver.mapping.Mapper;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.connector.file.sink.FileSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
-import org.apache.flink.core.fs.Path;
+import org.apache.flink.connector.kafka.source.reader.deserializer.KafkaRecordDeserializationSchema;
 import org.apache.flink.formats.avro.registry.confluent.ConfluentRegistryAvroDeserializationSchema;
-import org.apache.flink.formats.parquet.avro.ParquetAvroWriters;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.sink.filesystem.rollingpolicies.OnCheckpointRollingPolicy;
-import org.apache.flink.streaming.connectors.cassandra.CassandraSink;
 import org.example.jobtypes.JobTypeManager;
 
 
@@ -39,7 +34,9 @@ public class TransactionsMLFeaturesJob {
                 .setTopics("transactions")
                 .setGroupId("transactions-ml-features-job-user")
                 .setStartingOffsets(OffsetsInitializer.latest())
-                .setValueOnlyDeserializer(ConfluentRegistryAvroDeserializationSchema.forGeneric(schema,"http://localhost:8081"))
+                .setDeserializer(KafkaRecordDeserializationSchema.valueOnly(
+                        ConfluentRegistryAvroDeserializationSchema.forGeneric(schema, "http://localhost:8081")
+                ))
                 .build();
 
         DataStream<GenericRecord> sourceStream = env.fromSource(source, WatermarkStrategy.noWatermarks(), "Kafka Source");

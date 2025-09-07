@@ -9,7 +9,7 @@ public class Transaction {
     public double amount;
     public String currency;
     public int counterpart_id;
-
+    public String type;
     public Transaction() {}
 
     public Transaction(String jsonString) {
@@ -19,6 +19,7 @@ public class Transaction {
         amount = json.getDouble("amount");
         currency = json.getString("currency");
         counterpart_id = json.getInt("counterpart_id");
+        type = json.optString("type","realtime");
     }
     
     public Transaction(GenericRecord t){
@@ -28,6 +29,11 @@ public class Transaction {
         amount = (double) t.get("amount");
         currency = t.get("currency").toString();
         counterpart_id = (int) t.get("counterpart_id");
+        if(t.hasField("type") && t.get("type")!=null){
+            type = t.get("type").toString();
+        } else {
+            type = "realtime";
+        }
     }
 
     @Override

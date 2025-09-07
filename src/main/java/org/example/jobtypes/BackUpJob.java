@@ -18,6 +18,7 @@ public class BackUpJob implements JobType {
                         ParquetAvroWriters.forReflectRecord(Transaction.class))
                 .withRollingPolicy(OnCheckpointRollingPolicy.build())
                 .build();
+
         transactionDataStream.rescale().sinkTo(parquetSink).setParallelism(1);
         env.enableCheckpointing(checkpointDuration);
     }

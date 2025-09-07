@@ -1,6 +1,7 @@
 package org.example.jobtypes;
 
 import com.datastax.driver.mapping.Mapper;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.connector.file.sink.FileSink;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.formats.parquet.avro.ParquetAvroWriters;
@@ -8,6 +9,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.filesystem.rollingpolicies.OnCheckpointRollingPolicy;
 import org.apache.flink.streaming.connectors.cassandra.CassandraSink;
+import org.apache.flink.util.Collector;
 import org.example.Transaction;
 import org.example.TransactionCount;
 import org.example.TransactionCounter;
@@ -18,13 +20,34 @@ public class MLFeatureJob implements JobType{
     public void runJob(StreamExecutionEnvironment env, DataStream<Transaction> transactionDataStream) throws Exception {
         long checkpointDuration = 100l;
 
-        DataStream<TransactionCount> processedStream = transactionDataStream
+
+        DataStream<Transaction> realTimeDataStream = transactionDataStream.flatMap(new FlatMapFunction<Transaction, Transaction>() {
+            @Override
+            public void flatMap(Transaction transaction, Collector<Transaction> collector) throws Exception {
+                if(!transaction.type.equals("backfill")){
+                    collector.collect(transaction);
+                }
+            }
+        });
+
+        DataStream<Transaction> backfillStream = transactionDataStream.flatMap(new FlatMapFunction<Transaction, Transaction>() {
+            @Override
+            public void flatMap(Transaction transaction, Collector<Transaction> collector) throws Exception {
+                if(transaction.type.equals("backfill")){
+                    collector.collect(transaction);
+                }
+            }
+        });
+
+        DataStream<TransactionCount> processedBackfillStream = backfillStream
                 .keyBy(transaction -> transaction.user_id)
                 .map(new TransactionCounter());
-        processedStream.print();
+        DataStream<TransactionCount> processesRealTimeStream = realTimeDataStream.
+                keyBy(transaction -> transaction.user_id)
+                .map(new TransactionCounter());
 
         //wriiting to cassandra
-        CassandraSink.addSink(processedStream)
+        CassandraSink.addSink(processesRealTimeStream)
                 .setHost("127.0.0.1")
                 .setMapperOptions(() -> new Mapper.Option[]{Mapper.Option.saveNullFields(true)})
                 .build();
@@ -36,7 +59,8 @@ public class MLFeatureJob implements JobType{
                 .withRollingPolicy(OnCheckpointRollingPolicy.build())
                 .build();
 
-        processedStream.rescale().sinkTo(parquetSink).setParallelism(1);
+        processesRealTimeStream.rescale().sinkTo(parquetSink).setParallelism(1);
+        processedBackfillStream.rescale().sinkTo(parquetSink).setParallelism(1);
 
         env.enableCheckpointing(checkpointDuration);
     }
