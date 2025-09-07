@@ -38,7 +38,7 @@ public class TransactionsMLFeaturesJob {
                 .setBootstrapServers("localhost:9092")
                 .setTopics("transactions")
                 .setGroupId("transactions-ml-features-job-user")
-                .setStartingOffsets(OffsetsInitializer.earliest())
+                .setStartingOffsets(OffsetsInitializer.latest())
                 .setValueOnlyDeserializer(ConfluentRegistryAvroDeserializationSchema.forGeneric(schema,"http://localhost:8081"))
                 .build();
 
